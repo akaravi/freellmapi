@@ -1,6 +1,16 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { getUnifiedApiKey, regenerateUnifiedKey, getSetting, setSetting } from '../db/index.js';
+import {
+  getUnifiedApiKey,
+  regenerateUnifiedKey,
+  listUnifiedApiKeys,
+  createUnifiedApiKey,
+  getUnifiedApiKeyById,
+  updateUnifiedApiKey,
+  deleteUnifiedApiKey,
+  regenerateUnifiedApiKeyDetail,
+} from '../services/unified-keys.js';
+import { getSetting, setSetting } from '../db/index.js';
 import { applyProxyUrl, applyProxyEnabled, applyProxyBypass, isProxyActive, getProxyUrl, isProxyEnabled, getProxyBypassPlatforms } from '../lib/proxy.js';
 import { getSavedFusionConfig, setSavedFusionConfig, savedFusionConfigSchema, getFusionMaxK } from '../services/fusion.js';
 import { isUnifyEnabled, setUnifyEnabled, getUnifyOverrides, setUnifyOverrides, unifyOverridesSchema } from '../services/model-groups.js';
@@ -114,17 +124,112 @@ settingsRouter.put('/guardrails', (req: Request, res: Response) => {
   });
 });
 
-// Get the unified API key
+// Get the unified API key (legacy — first enabled key)
 settingsRouter.get('/api-key', (_req: Request, res: Response) => {
   res.json({ apiKey: getUnifiedApiKey() });
 });
 
-// Regenerate the unified API key
+// Regenerate the primary unified API key (legacy)
 settingsRouter.post('/api-key/regenerate', (_req: Request, res: Response) => {
   const newKey = regenerateUnifiedKey();
   res.json({ apiKey: newKey });
 });
 
+// List all unified API keys (masked)
+settingsRouter.get('/api-keys', (_req: Request, res: Response) => {
+  res.json(listUnifiedApiKeys());
+});
+
+// Reveal one unified API key (dashboard auth required)
+settingsRouter.get('/api-keys/:id', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: { message: 'Invalid key id', type: 'invalid_request_error' } });
+    return;
+  }
+  const detail = getUnifiedApiKeyById(id);
+  if (!detail) {
+    res.status(404).json({ error: { message: 'Unified API key not found', type: 'invalid_request_error' } });
+    return;
+  }
+  res.json(detail);
+});
+
+const createUnifiedKeySchema = z.object({
+  label: z.string().optional(),
+});
+
+settingsRouter.post('/api-keys', (req: Request, res: Response) => {
+  const parsed = createUnifiedKeySchema.safeParse(req.body);
+  if (!parsed.success) {
+    const detail = parsed.error.errors.map(e => e.message).join(', ');
+    res.status(400).json({ error: { message: detail, type: 'invalid_request_error' } });
+    return;
+  }
+  const created = createUnifiedApiKey(parsed.data.label ?? '');
+  res.status(201).json(created);
+});
+
+const updateUnifiedKeySchema = z.object({
+  label: z.string().optional(),
+  enabled: z.boolean().optional(),
+  regenerate: z.boolean().optional(),
+}).refine(data => data.label !== undefined || data.enabled !== undefined || data.regenerate === true, {
+  message: 'At least one of label, enabled, or regenerate must be provided',
+});
+
+settingsRouter.patch('/api-keys/:id', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: { message: 'Invalid key id', type: 'invalid_request_error' } });
+    return;
+  }
+  const parsed = updateUnifiedKeySchema.safeParse(req.body);
+  if (!parsed.success) {
+    const detail = parsed.error.errors.map(e => e.message).join(', ');
+    res.status(400).json({ error: { message: detail, type: 'invalid_request_error' } });
+    return;
+  }
+  try {
+    if (parsed.data.regenerate) {
+      const detail = regenerateUnifiedApiKeyDetail(id);
+      if (!detail) {
+        res.status(404).json({ error: { message: 'Unified API key not found', type: 'invalid_request_error' } });
+        return;
+      }
+      res.json(detail);
+      return;
+    }
+    const updated = updateUnifiedApiKey(id, parsed.data);
+    if (!updated) {
+      res.status(404).json({ error: { message: 'Unified API key not found', type: 'invalid_request_error' } });
+      return;
+    }
+    res.json(updated);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Update failed';
+    res.status(400).json({ error: { message, type: 'invalid_request_error' } });
+  }
+});
+
+settingsRouter.delete('/api-keys/:id', (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: { message: 'Invalid key id', type: 'invalid_request_error' } });
+    return;
+  }
+  try {
+    const deleted = deleteUnifiedApiKey(id);
+    if (!deleted) {
+      res.status(404).json({ error: { message: 'Unified API key not found', type: 'invalid_request_error' } });
+      return;
+    }
+    res.status(204).send();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Delete failed';
+    res.status(400).json({ error: { message, type: 'invalid_request_error' } });
+  }
+});
 // Get the proxy settings
 settingsRouter.get('/proxy', (_req: Request, res: Response) => {
   res.json({

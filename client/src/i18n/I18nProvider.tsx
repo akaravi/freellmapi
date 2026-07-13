@@ -30,8 +30,9 @@ import fr from './locales/fr.json'
 import es from './locales/es.json'
 import ptBR from './locales/pt-BR.json'
 import it from './locales/it.json'
+import fa from './locales/fa.json'
 
-export const SUPPORTED_LOCALES = ['en', 'zh-CN', 'fr', 'es', 'pt-BR', 'it'] as const
+export const SUPPORTED_LOCALES = ['fa', 'en', 'zh-CN', 'fr', 'es', 'pt-BR', 'it'] as const
 export type Locale = (typeof SUPPORTED_LOCALES)[number]
 
 export const DEFAULT_LOCALE: Locale = 'en'
@@ -50,6 +51,7 @@ function detectLocale(): Locale {
   }
   const nav = navigator.language || (navigator as { userLanguage?: string }).userLanguage || ''
   const lower = nav.toLowerCase()
+  if (lower.startsWith('fa')) return 'fa'
   if (lower.startsWith('zh')) return 'zh-CN'
   if (lower.startsWith('pt')) return 'pt-BR'
   if (lower.startsWith('fr')) return 'fr'
@@ -62,6 +64,7 @@ function detectLocale(): Locale {
 type Dictionary = Record<string, unknown>
 
 const dictionaries: Record<Locale, Dictionary> = {
+  fa: fa as Dictionary,
   en: en as Dictionary,
   'zh-CN': zhCN as Dictionary,
   fr: fr as Dictionary,
@@ -118,6 +121,7 @@ export function I18nProvider({ children, initialLocale }: I18nProviderProps) {
     if (typeof window === 'undefined') return
     window.localStorage.setItem('freellmapi.locale', locale)
     document.documentElement.lang = locale
+    document.documentElement.dir = locale === 'fa' ? 'rtl' : 'ltr'
   }, [locale])
 
   const setLocale = useCallback((next: Locale) => {

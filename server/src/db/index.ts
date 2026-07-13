@@ -1,10 +1,10 @@
-import crypto from 'crypto';
 import BetterSqlite from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { runMigrationsSync } from './migrate/runner.js';
 import { initEncryptionKey, isEncryptionKeyInitialized } from '../lib/crypto.js';
+import { seedUnifiedKeysFromLegacy } from '../services/unified-keys.js';
 import type { Db, DbFactory } from './types.js';
 
 export type { Db, DbFactory } from './types.js';
@@ -85,21 +85,12 @@ export function initDb(
 
   if (!isEncryptionKeyInitialized()) initEncryptionKey(db);
 
+  seedUnifiedKeysFromLegacy(db);
+
   return db;
 }
 
-export function getUnifiedApiKey(): string {
-  const db = getDb();
-  const row = db.prepare("SELECT value FROM settings WHERE key = 'unified_api_key'").get() as { value: string };
-  return row.value;
-}
-
-export function regenerateUnifiedKey(): string {
-  const db = getDb();
-  const key = `freellmapi-${crypto.randomBytes(24).toString('hex')}`;
-  db.prepare("UPDATE settings SET value = ? WHERE key = 'unified_api_key'").run(key);
-  return key;
-}
+export { getUnifiedApiKey, regenerateUnifiedKey } from '../services/unified-keys.js';
 
 // Generic key/value settings accessors (used by routing strategy, etc.).
 export function getSetting(key: string): string | undefined {

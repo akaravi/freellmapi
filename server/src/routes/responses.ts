@@ -10,12 +10,11 @@ import type {
   Platform,
 } from '@freellmapi/shared/types.js';
 import { routeRequest, hasEnabledToolsModel, routingReserveTokens, type RouteResult } from '../services/router.js';
-import { getUnifiedApiKey } from '../db/index.js';
+import { isValidUnifiedApiKey } from '../services/unified-keys.js';
 import { contentToString } from '../lib/content.js';
 import { repairToolArguments, toolSchemaMap } from '../lib/tool-args.js';
 import { rescueInlineToolCalls, startsWithDialectMarker, couldBecomeDialectMarker, containsDialectMarker } from '../lib/tool-call-rescue.js';
 import {
-  timingSafeStringEqual,
   extractApiToken,
   getRequestGroupId,
   getStickyModel,
@@ -302,8 +301,7 @@ responsesRouter.post('/responses', async (req: Request, res: Response) => {
 
   // Same unified-key auth as the proxy (accepts Bearer or x-api-key).
   const token = extractApiToken(req);
-  const unifiedKey = getUnifiedApiKey();
-  if (!token || !timingSafeStringEqual(token, unifiedKey)) {
+  if (!token || !isValidUnifiedApiKey(token)) {
     res.status(401).json({ error: { message: 'Invalid API key', type: 'authentication_error' } });
     return;
   }

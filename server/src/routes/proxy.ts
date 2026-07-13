@@ -7,7 +7,9 @@ import { routeRequest, resolveRoutingChain, resolveModelGroupCandidates, recordR
 import { recordRequest, recordTokens, setCooldown, getCooldownDurationForLimit, PAYMENT_REQUIRED_COOLDOWN_MS, MODEL_FORBIDDEN_COOLDOWN_MS, learnLimitFromError } from '../services/ratelimit.js';
 import { runEmbeddings, EmbeddingsError } from '../services/embeddings.js';
 import { runImageGeneration, runSpeech, MediaError } from '../services/media.js';
-import { getDb, getUnifiedApiKey } from '../db/index.js';
+import { getDb } from '../db/index.js';
+import { isValidUnifiedApiKey } from '../services/unified-keys.js';
+import { timingSafeStringEqual } from '../lib/timing-safe.js';
 import { contentToString, messageHasImage, normalizeOutboundContent, sanitizeResponse } from '../lib/content.js';
 import { repairToolArguments, toolSchemaMap } from '../lib/tool-args.js';
 import { sanitizeProviderErrorMessage } from '../lib/error-redaction.js';
@@ -40,19 +42,8 @@ function isAutoModel(modelId: string | undefined): boolean {
   return lower === AUTO_MODEL_ID || lower.startsWith(`${AUTO_MODEL_ID}:`);
 }
 
-// Constant-time string comparison for the unified API key. Plain `===` leaks
-// length and per-character timing, which a network attacker could in principle
-// use to recover the key one byte at a time.
-export function timingSafeStringEqual(provided: string, expected: string): boolean {
-  // Use HMAC to produce fixed-length digests so timingSafeEqual always
-  // receives same-length buffers regardless of input length. This eliminates
-  // both the per-character timing leak and the length-branch timing leak that
-  // the Buffer.alloc-on-mismatch approach had.
-  const key = Buffer.alloc(32);
-  const a = crypto.createHmac('sha256', key).update(provided).digest();
-  const b = crypto.createHmac('sha256', key).update(expected).digest();
-  return crypto.timingSafeEqual(a, b);
-}
+// Re-exported for route tests and Anthropic/Responses/MCP auth helpers.
+export { timingSafeStringEqual } from '../lib/timing-safe.js';
 
 // Extract the unified API key from an incoming request. Accepts both the
 // OpenAI-style `Authorization: Bearer <key>` header and the Anthropic-style
@@ -197,8 +188,7 @@ export function setStickyModel(messages: ChatMessage[], modelDbId: number, sessi
 // shows API models which is linked by the user
 proxyRouter.get('/models', (req: Request, res: Response) => {
   const token = extractApiToken(req);
-  const unifiedKey = getUnifiedApiKey();
-  if (!token || !timingSafeStringEqual(token, unifiedKey)) {
+  if (!token || !isValidUnifiedApiKey(token)) {
     res.status(401).json({ error: { message: 'Invalid API key', type: 'authentication_error' } });
     return;
   }
@@ -461,8 +451,7 @@ const EmbeddingsBody = z.object({
 
 proxyRouter.post('/embeddings', async (req: Request, res: Response) => {
   const token = extractApiToken(req);
-  const unifiedKey = getUnifiedApiKey();
-  if (!token || !timingSafeStringEqual(token, unifiedKey)) {
+  if (!token || !isValidUnifiedApiKey(token)) {
     res.status(401).json({ error: { message: 'Invalid API key', type: 'authentication_error' } });
     return;
   }
@@ -509,8 +498,7 @@ function mediaErrorType(status: number): string {
 
 proxyRouter.post('/images/generations', async (req: Request, res: Response) => {
   const token = extractApiToken(req);
-  const unifiedKey = getUnifiedApiKey();
-  if (!token || !timingSafeStringEqual(token, unifiedKey)) {
+  if (!token || !isValidUnifiedApiKey(token)) {
     res.status(401).json({ error: { message: 'Invalid API key', type: 'authentication_error' } });
     return;
   }
@@ -547,8 +535,7 @@ const SpeechBody = z.object({
 
 proxyRouter.post('/audio/speech', async (req: Request, res: Response) => {
   const token = extractApiToken(req);
-  const unifiedKey = getUnifiedApiKey();
-  if (!token || !timingSafeStringEqual(token, unifiedKey)) {
+  if (!token || !isValidUnifiedApiKey(token)) {
     res.status(401).json({ error: { message: 'Invalid API key', type: 'authentication_error' } });
     return;
   }
@@ -635,8 +622,7 @@ proxyRouter.post('/completions', async (req: Request, res: Response) => {
   res.setHeader('X-Request-ID', requestGroupId);
 
   const token = extractApiToken(req);
-  const unifiedKey = getUnifiedApiKey();
-  if (!token || !timingSafeStringEqual(token, unifiedKey)) {
+  if (!token || !isValidUnifiedApiKey(token)) {
     res.status(401).json({
       error: { message: 'Invalid API key', type: 'authentication_error' },
     });
@@ -970,8 +956,7 @@ proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
   // loopback callers. Browser pages can reach localhost, so socket locality is
   // not a reliable authorization boundary.
   const token = extractApiToken(req);
-  const unifiedKey = getUnifiedApiKey();
-  if (!token || !timingSafeStringEqual(token, unifiedKey)) {
+  if (!token || !isValidUnifiedApiKey(token)) {
     res.status(401).json({
       error: { message: 'Invalid API key', type: 'authentication_error' },
     });

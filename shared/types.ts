@@ -183,6 +183,18 @@ export interface ApiKeyCreate {
   label?: string;
 }
 
+export interface UnifiedApiKey {
+  id: number;
+  label: string;
+  maskedKey: string;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface UnifiedApiKeyDetail extends UnifiedApiKey {
+  apiKey: string;
+}
+
 // ---- Fallback Config ----
 
 export interface FallbackEntry {

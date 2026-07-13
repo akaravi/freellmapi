@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { getDb, getUnifiedApiKey } from '../db/index.js';
-import { extractApiToken, timingSafeStringEqual } from './proxy.js';
+import { getDb } from '../db/index.js';
+import { isValidUnifiedApiKey } from '../services/unified-keys.js';
+import { extractApiToken } from './proxy.js';
 import { buildModelListing } from '../services/model-listing.js';
 import { supportedParametersForPlatforms } from '../lib/sampling-params.js';
 import { getRoutingScores, getRoutingStrategy, setRoutingStrategy } from '../services/router.js';
@@ -294,8 +295,7 @@ function dispatchRpc(msg: JsonRpcRequest, id: number | string | null): unknown {
 
 function authenticate(req: Request, res: Response): boolean {
   const token = extractApiToken(req);
-  const unifiedKey = getUnifiedApiKey();
-  if (!token || !timingSafeStringEqual(token, unifiedKey)) {
+  if (!token || !isValidUnifiedApiKey(token)) {
     // Echo the request id when the body carries one, so strict JSON-RPC
     // clients can correlate the auth error with their pending call.
     const body = req.body;

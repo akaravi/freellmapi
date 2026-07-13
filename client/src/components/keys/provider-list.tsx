@@ -122,6 +122,19 @@ export function ProviderList({ onAddKey }: { onAddKey: () => void }) {
     },
   })
 
+  const toggleKeyEnabled = useMutation({
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
+      apiFetch(`/api/keys/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['keys'] })
+      queryClient.invalidateQueries({ queryKey: ['health'] })
+      queryClient.invalidateQueries({ queryKey: ['fallback'] })
+    },
+  })
+
   const toggleBypass = useMutation({
     mutationFn: (platform: string) => {
       const next = bypassPlatforms.includes(platform)
@@ -354,7 +367,13 @@ export function ProviderList({ onAddKey }: { onAddKey: () => void }) {
                       const isChecking = checkKey.isPending && checkKey.variables === k.id
                       return (
                         <div key={k.id} className="bg-card">
-                          <div className="group/krow flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors">
+                          <div className={`group/krow flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors ${k.enabled ? '' : 'opacity-50'}`}>
+                            <Switch
+                              checked={k.enabled}
+                              onCheckedChange={(checked) => toggleKeyEnabled.mutate({ id: k.id, enabled: checked })}
+                              disabled={toggleKeyEnabled.isPending}
+                              aria-label={k.enabled ? t('keys.disableKey') : t('keys.enableKey')}
+                            />
                             <span className={`size-1.5 rounded-full flex-shrink-0 ${statusDot[status] ?? statusDot.unknown}`} />
                             {hasCustomModels && (
                               <Button
