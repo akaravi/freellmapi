@@ -13,11 +13,13 @@ import { restoreDbBackupIfNeeded, startDbBackupPump } from './lib/db-backup.js';
 import { userCount } from './services/auth.js';
 import { generateSetupCode } from './lib/setup-code.js';
 import { warnOnEnvDrift } from './lib/env-drift.js';
+import { getUnifiedKeyPrefix } from './lib/unified-key-prefix.js';
 
 async function main() {
   const config = loadConfig();
   const { port: PORT, host: HOST } = config;
   warnOnEnvDrift();
+  console.log(`[config] Unified API key prefix (new keys): ${getUnifiedKeyPrefix()}`);
 
   // Install first so a late provider socket reset (undici HTTP/2 error with no
   // listener) can't take the proxy down. Genuine bugs still exit 1.
