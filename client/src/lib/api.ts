@@ -54,12 +54,11 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
     err.code = body.error?.type;
     throw err;
   }
-  // A 200 whose body isn't JSON means this request never reached the API — the
-  // usual cause is a reverse proxy (or static host) serving the dashboard's
-  // index.html for /api/* instead of forwarding it to the backend. Without this
-  // guard the raw res.json() throws an opaque "Unexpected token '<'", which on
-  // the setup/login form surfaces as "sign up page cannot work". Say what's
-  // actually wrong. (#257)
+  // 204/205 have no body (e.g. DELETE /api/settings/api-keys/:id). A 200 whose
+  // body isn't JSON usually means /api never reached the backend (#257).
+  if (res.status === 204 || res.status === 205) {
+    return undefined as T;
+  }
   const text = await res.text();
   try {
     return JSON.parse(text) as T;
