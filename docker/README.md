@@ -83,6 +83,7 @@ docker compose up -d --build
 | `FREEAPI_DB_BACKUP_KEY` | No | `ENCRYPTION_KEY` | 64-character hex key for backup encryption. Use a separate stable key if possible. |
 | `FREEAPI_CONFIG_PATH` | No | None | JSON config file applied idempotently after migrations on every boot. |
 | `FREEAPI_CONFIG_JSON` | No | None | Inline JSON config. Takes precedence over `FREEAPI_CONFIG_PATH`. |
+| `FREEAPI_UNIFIED_KEY_PREFIX` | No | `freellmapi` | Prefix for newly generated unified API keys (`<prefix>-<hex>`). Existing keys unchanged. |
 
 The `freellmapi-data` volume stores SQLite data at `/app/server/data`. Keep the same volume and `ENCRYPTION_KEY` when upgrading, otherwise existing encrypted provider keys cannot be decrypted.
 

@@ -3,6 +3,7 @@ import type { Db } from '../db/types.js';
 import { getDb } from '../db/index.js';
 import { decrypt, encrypt, maskKey } from '../lib/crypto.js';
 import { timingSafeStringEqual } from '../lib/timing-safe.js';
+import { getUnifiedKeyPrefix } from '../lib/unified-key-prefix.js';
 
 export interface UnifiedApiKeyRow {
   id: number;
@@ -27,7 +28,7 @@ export interface UnifiedApiKeyDetail extends UnifiedApiKeyListItem {
 }
 
 function generateKeyValue(): string {
-  return `freellmapi-${crypto.randomBytes(24).toString('hex')}`;
+  return `${getUnifiedKeyPrefix()}-${crypto.randomBytes(24).toString('hex')}`;
 }
 
 function rowToListItem(row: UnifiedApiKeyRow): UnifiedApiKeyListItem {

@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import type { Express } from 'express';
 import { createApp } from '../../app.js';
 import { initDb, getUnifiedApiKey } from '../../db/index.js';
 import { mintDashboardToken, isGatedApiPath } from '../helpers/auth.js';
+import { resetUnifiedKeyPrefixCacheForTests } from '../../lib/unified-key-prefix.js';
 
 let dashToken = '';
 
@@ -46,6 +47,10 @@ describe('Unified API keys', () => {
     initDb(':memory:');
     app = createApp();
     dashToken = mintDashboardToken();
+  });
+
+  afterEach(() => {
+    resetUnifiedKeyPrefixCacheForTests();
   });
 
   it('GET /api/settings/api-keys lists seeded legacy key', async () => {
@@ -124,6 +129,13 @@ describe('Unified API keys', () => {
     expect(del.status).toBe(204);
     const reveal = await request(app, 'GET', `/api/settings/api-keys/${id}`);
     expect(reveal.status).toBe(404);
+  });
+
+  it('POST /api/settings/api-keys uses FREEAPI_UNIFIED_KEY_PREFIX for new keys', async () => {
+    process.env.FREEAPI_UNIFIED_KEY_PREFIX = 'ntk';
+    const created = await request(app, 'POST', '/api/settings/api-keys', { label: 'custom-prefix' });
+    expect(created.status).toBe(201);
+    expect((created.body as any).apiKey).toMatch(/^ntk-[a-f0-9]{48}$/);
   });
 
   it('legacy GET /api/settings/api-key returns first enabled key', async () => {
